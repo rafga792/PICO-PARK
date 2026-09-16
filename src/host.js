@@ -1,434 +1,127 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
-    <!-- Supabase JS Client SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./src/supabaseConfig.js"></script>
+class Host {
+    constructor(game) {
+        this.game = game;
+        this.roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+        this.channel = null;
+        this.isSubscribed = false;
+        this.createdPlayerIds = new Set(); // Mencegah duplikasi player
+    }
 
-    <!-- External Libraries -->
-    <script src="./libs/common.js"></script>
-    <script src="./libs/matter.min.js"></script>
-    <script src="./libs/matterjsRaycast.js"></script>
-    <script src="libs/words.js"></script>
+    init() {
+        console.log("Host Room Code:", this.roomCode);
 
-    <!-- Google Fonts untuk tampilan khas Pico Park -->
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" href="./assets/imgs/favicon.png">
-    <title id="title">Microscopic Natural Area for Public Recreational Activities</title>
-
-    <style>
-        @font-face {
-            font-family: squareforced;
-            src: local('FORCEDSQUARE'), url(./assets/FORCEDSQUARE.ttf) format('truetype');
-            font-display: swap;
+        const roomCodeEl = document.getElementById("roomCode");
+        if (roomCodeEl) {
+            roomCodeEl.textContent = this.roomCode;
         }
 
-        :root {
-            --bg-color: #f7d547;
-            --card-bg: #ffffff;
-            --primary-color: #ff5964;
-            --secondary-color: #35a7ff;
-            --accent-color: #06d6a0;
-            --text-color: #2e2e2e;
-            --border-color: #2e2e2e;
-        }
-
-        * {
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: manipulation;
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background-color: #1a1a1a;
-            font-family: 'Fredoka', sans-serif;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        /* Responsive Canvas Scaling (Agate tampilan HP & Laptop sejajar 16:9) */
-        #c {
-            display: block !important;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            max-width: 100vw;
-            max-height: 100vh;
-            object-fit: contain;
-            aspect-ratio: 16 / 9;
-        }
-
-        /* Navigasi Atas */
-        .overlay {
-            position: fixed;
-            top: 12px;
-            left: 12px;
-            z-index: 100;
-            display: flex;
-            gap: 10px;
-        }
-
-        .overlay a {
-            color: var(--text-color);
-            background: var(--card-bg);
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 0.9rem;
-            padding: 8px 14px;
-            border: 3px solid var(--border-color);
-            border-radius: 12px;
-            box-shadow: 0 4px 0 var(--border-color);
-            transition: all 0.1s ease;
-        }
-
-        .overlay a:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 var(--border-color);
-        }
-
-        /* Lobi / Room Menu */
-        #menu {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 50;
-            width: 90%;
-            max-width: 400px;
-        }
-
-        #host, #join {
-            background: var(--card-bg);
-            padding: 24px;
-            border-radius: 20px;
-            border: 4px solid var(--border-color);
-            box-shadow: 6px 6px 0px var(--border-color);
-            text-align: center;
-        }
-
-        #gameDetails {
-            font-size: 1.2rem;
-            font-weight: 700;
-            margin-bottom: 15px;
-            color: var(--text-color);
-        }
-
-        #memberList {
-            background: #f9f9f9;
-            border: 3px solid var(--border-color);
-            border-radius: 12px;
-            padding: 12px;
-            margin: 15px 0;
-            text-align: left;
-            max-height: 150px;
-            overflow-y: auto;
-        }
-
-        #memberList h2 {
-            font-size: 1rem;
-            margin: 0 0 8px 0;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 12px;
-            font-size: 1rem;
-            font-weight: 700;
-            color: white;
-            border: 3px solid var(--border-color);
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 4px 0 var(--border-color);
-            margin-top: 8px;
-            transition: all 0.1s ease;
-        }
-
-        .btn:active {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 var(--border-color);
-        }
-
-        .btn-green { background-color: var(--accent-color); color: var(--text-color); }
-        .btn-blue { background-color: var(--secondary-color); }
-
-        /* Virtual Touch Controls (Game-pad Mobile) */
-        #touch-controls {
-            display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 0;
-            right: 0;
-            height: 140px;
-            z-index: 99;
-            pointer-events: none;
-            padding: 0 20px;
-        }
-
-        .touch-btn {
-            pointer-events: auto;
-            position: absolute;
-            background: rgba(255, 255, 255, 0.85);
-            border: 3px solid var(--border-color);
-            box-shadow: 0 4px 0 var(--border-color);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--text-color);
-            touch-action: manipulation;
-        }
-
-        .touch-btn:active, .touch-btn.active {
-            background: var(--accent-color);
-            transform: translateY(4px);
-            box-shadow: 0 0 0 var(--border-color);
-        }
-
-        #btn-left { bottom: 20px; left: 20px; width: 65px; height: 65px; }
-        #btn-right { bottom: 20px; left: 95px; width: 65px; height: 65px; }
-        #btn-jump { bottom: 25px; right: 25px; width: 75px; height: 75px; background: rgba(255, 89, 100, 0.9); color: white; }
-    </style>
-</head>
-<body>
-
-    <script>
-        var url = location.href,
-            urlData = url.split("?").splice(-1,1);
-
-        data = {};
-        urlData.forEach((e)=>{
-            data[e.split("=")[0]] = e.split("=")[1];
+        // Inisialisasi Channel Supabase Realtime
+        this.channel = supabaseClient.channel(`room_${this.roomCode}`, {
+            config: {
+                presence: { key: 'host' },
+            },
         });
 
-        urlData = data;
-    </script>
+        // Tangkap update dari Client
+        this.channel.on('broadcast', { event: 'client-update' }, ({ payload }) => {
+            this.handleClientUpdate(payload);
+        });
 
-    <canvas id="c" style="display: none;"></canvas>
-
-    <!-- Overlay Navigasi -->
-    <div class="overlay">
-        <a href="./index.html">← Home</a>
-        <a style="display: none;" id="restartLevel" href="#" onclick="(function(){
-            mainGame.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name);
-            return false;
-        })();return false;">🔄 Restart</a>
-    </div>
-
-    <!-- Scripts Game -->
-    <script src="./src/multiplayer.js"></script>
-    <script src="./src/buttons.js"></script>
-    <script src="./src/door.js"></script>
-    <script src="./src/trigger.js"></script>
-    <script src="./src/blocks.js"></script>
-    <script src="./src/lasers.js"></script>
-    <script src="./src/jumppad.js"></script>
-
-    <script src="./src/levels.js"></script>
-    <script src="./src/level.js"></script>
-
-    <script src="./src/matterInit.js"></script>
-    <script src="./src/atlasSetup.js"></script>
-
-    <script src="src/syncController.js"></script>
-
-    <script src="./src/controls.js"></script>
-    <script src="./src/update.js"></script>
-
-    <script src="./src/player.js"></script>
-    <script src="./src/render.js"></script>
-
-    <script src="./src/entity.js"></script>
-    <script src="src/particles.js"></script>
-
-    <script src="./src/game.js"></script>
-
-    <script src="./src/constraints.js"></script>
-
-    <!-- Supabase Multiplayer Modules -->
-    <script src="./src/host.js"></script>
-    <script src="./src/client.js"></script>
-
-    <script src="./src/menu.js"></script>
-
-    <!-- Room / Lobby UI -->
-    <div id="menu">
-        <div id="host" style="display: none;">
-            <div id="gameDetails">
-                <div id="gameCode">Code: <b id="roomCode">fetching...</b><span id="incoming"></span></div>
-                <a id="copyLink" href="#" style="font-size:0.9rem; color:var(--secondary-color);" onclick="copyRoomLink()">[📋 Copy Link]</a>
-            </div>
+        // Pantau player yang terhubung (Presence)
+        this.channel.on('presence', { event: 'sync' }, () => {
+            const state = this.channel.presenceState();
+            this.updateMemberList(state);
             
-            <div id="memberList">
-                <h2>Members:</h2>
-                <div id="memberlist"></div>
-                <div>👑 Host</div>
-            </div>
-
-            <button class="btn btn-blue" onclick="(function(){
-                mainGame.playerhandler.addPlayer({
-                    controls:['a','d','w','s'],
-                    keys:keys,
-                    color:mainGame.fetchColor(),
-                });
-                addPlayerToMenu('Player2');
-                return false;
-            })();return false;">+ Add Local Co-op Player</button>
-
-            <button class="btn btn-green" onclick="(function(){
-                startGame();
-                if(hostConnection) {
-                    hostConnection.broadcast({ startGame: true });
-                }
-                return false;
-            })();return false;">▶ Start Game</button>
-        </div>
-
-        <div id="join" style="display: none;">
-            🎮 Waiting for host to start game...
-        </div>
-    </div>
-
-    <!-- Controls On-Screen untuk Mobile/Touch Devices -->
-    <div id="touch-controls">
-        <div id="btn-left" class="touch-btn">◀</div>
-        <div id="btn-right" class="touch-btn">▶</div>
-        <div id="btn-jump" class="touch-btn">▲</div>
-    </div>
-
-    <script>
-        window.localfile = location.protocol == "file:";
-
-        function copyRoomLink() {
-            if (window.hostConnection && hostConnection.roomCode) {
-                const joinUrl = `${window.location.origin}${window.location.pathname}?join=${hostConnection.roomCode}`;
-                navigator.clipboard.writeText(joinUrl);
-                alert('Link room berhasil disalin!');
+            if (this.isSubscribed && this.game.levelHandler && this.game.levelHandler.currentLevel) {
+                this.broadcastLevel(this.game.levelHandler.currentLevel.name);
             }
-        }
+        });
 
-        function initGame() {
-            window.mainGame = new Game();
+        // Subscribe WebSocket
+        this.channel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                this.isSubscribed = true;
+                console.log("Host terhubung ke Supabase Realtime WebSocket!");
+                this.channel.track({ role: 'host', onlineAt: new Date().toISOString() });
+            } else {
+                this.isSubscribed = false;
+            }
+        });
+    }
 
-            var player1 = mainGame.playerhandler.addPlayer({
-                controls: ["arrowleft", "arrowright", "arrowup", "arrowdown"],
-                keys: keys,
+    updateKey(key, state) {}
+
+    handleClientUpdate(data) {
+        if (!data || !data.playerId) return;
+
+        let targetPlayer = this.game.players.find(p => p.id === data.playerId);
+        
+        // Hanya buat player jika belum terdaftar & belum dikunci
+        if (!targetPlayer && !this.createdPlayerIds.has(data.playerId)) {
+            this.createdPlayerIds.add(data.playerId);
+
+            targetPlayer = this.game.playerhandler.addPlayer({
+                id: data.playerId,
+                color: this.game.fetchColor(),
+                keys: data.keys || {}
             });
 
-            window.hostConnection; 
-            window.clientConnection;
-
-            if (urlData.host) { 
-                hostConnection = new Host(mainGame); 
-                hostConnection.init(); 
+            if (this.game.levelHandler && this.game.levelHandler.currentLevel) {
+                this.broadcastLevel(this.game.levelHandler.currentLevel.name);
             }
-            if (urlData.join) {
-                clientConnection = new Client(mainGame, player1);
-                clientConnection.init(urlData.join);
-                document.getElementById("restartLevel").style.display = "none";
-            }
-            if (!urlData.host && !urlData.join) startGame();
-
-            // Loop Sync Realtime ke Supabase
-            setInterval(() => {
-                if (window.hostConnection) hostConnection.updateClients();
-                if (window.clientConnection) clientConnection.updateHost();
-            }, 15);
-
-            setInterval(() => {
-                mainGame.players.forEach((e) => { 
-                    if (!e.onlinePlayer) e.updateKeys(keys); 
-                });
-            }, 5);
+        } else if (targetPlayer) {
+            targetPlayer.keys = data.keys;
         }
+    }
 
-        function startMainGame() {
-            mainGame.testInit();
-            mainGame.initRender();
-        }
+    updateClients() {
+        if (!this.channel || !this.isSubscribed) return;
 
-        window.onload = () => {
-            _loadFont("squareforced");
-
-            if (urlData.host) {
-                document.getElementById("host").style.display = "block";
-            } else if (urlData.join) {
-                document.getElementById("join").style.display = "block";
-            }
-
-            initGame();
-
-            let tempLevel = localStorage.getItem("tempLevel");
-            if (tempLevel != null) {
-                let levelString = `({${atob(tempLevel)}})`;
-                document.getElementById("gameCode").innerHTML = "-- temp level loaded --";
-                document.getElementById("title").textContent = "temp-level";
-                document.getElementById("copyLink").style.display = "none";
-                levels.tempLevel = eval(levelString)["tempName"];
-                mainGame.runTemp = true;
-                localStorage.removeItem("tempLevel");
-            }
-
-            setupTouchControls();
+        const gameState = {
+            currentLevel: (this.game.levelHandler && this.game.levelHandler.currentLevel) 
+                ? this.game.levelHandler.currentLevel.name 
+                : null,
+            players: this.game.players.map(p => ({
+                id: p.id,
+                x: p.body ? p.body.position.x : 0,
+                y: p.body ? p.body.position.y : 0,
+                color: p.color
+            }))
         };
 
-        function setLevel(lvl) {
-            mainGame.renderer.levelTransistion(lvl);
-            if (window.hostConnection) {
-                hostConnection.broadcast({ setLevel: lvl });
+        this.channel.send({
+            type: 'broadcast',
+            event: 'host-update',
+            payload: gameState
+        });
+    }
+
+    broadcastLevel(levelName) {
+        if (!this.channel || !this.isSubscribed) return;
+        this.broadcast({ setLevel: levelName });
+    }
+
+    broadcast(data) {
+        if (!this.channel || !this.isSubscribed) return;
+
+        this.channel.send({
+            type: 'broadcast',
+            event: 'host-event',
+            payload: typeof data === 'string' ? JSON.parse(data) : data
+        });
+    }
+
+    updateMemberList(state) {
+        const memberListEl = document.getElementById("memberlist");
+        if (!memberListEl) return;
+
+        memberListEl.innerHTML = "";
+        Object.keys(state).forEach(key => {
+            if (key !== 'host') {
+                const item = document.createElement("div");
+                item.textContent = `Player (${key})`;
+                memberListEl.appendChild(item);
             }
-        }
-
-        /* --- SCRIPT SIMULASI KONTROL D-PAD MOBILE --- */
-        function setupTouchControls() {
-            const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-            const touchControls = document.getElementById("touch-controls");
-
-            if (isTouchDevice) {
-                touchControls.style.display = "block";
-            }
-
-            function bindTouchKey(elementId, keyCode, keyName) {
-                const btn = document.getElementById(elementId);
-                if (!btn) return;
-
-                const press = (e) => {
-                    e.preventDefault();
-                    btn.classList.add("active");
-                    if (typeof keys !== 'undefined') {
-                        keys[keyCode] = true;
-                        keys[keyName] = true;
-                    }
-                };
-
-                const release = (e) => {
-                    e.preventDefault();
-                    btn.classList.remove("active");
-                    if (typeof keys !== 'undefined') {
-                        keys[keyCode] = false;
-                        keys[keyName] = false;
-                    }
-                };
-
-                btn.addEventListener("touchstart", press, { passive: false });
-                btn.addEventListener("touchend", release, { passive: false });
-                btn.addEventListener("mousedown", press);
-                btn.addEventListener("mouseup", release);
-            }
-
-            bindTouchKey("btn-left", 37, "arrowleft");
-            bindTouchKey("btn-right", 39, "arrowright");
-            bindTouchKey("btn-jump", 38, "arrowup");
-        }
-    </script>
-</body>
-</html>
+        });
+    }
+}
