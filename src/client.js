@@ -1,103 +1,124 @@
-class Client {
-    constructor(game, playerInstance) {
+class Host {
+    constructor(game) {
         this.game = game;
-        this.player = playerInstance;
+        this.roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
         this.channel = null;
-        this.isSubscribed = false; // Flag status koneksi WebSocket
-        this.myId = 'client_' + Math.random().toString(36).substring(2, 6);
-        this.createdPlayerIds = new Set(); // Mencegah duplikasi pembuatan player di Client
-        
-        // Daftarkan ID unik ke player lokal jika ada
-        if (this.player) {
-            this.player.id = this.myId;
-            this.createdPlayerIds.add(this.myId);
-        }
+        this.isSubscribed = false;
+        this.createdPlayerIds = new Set(); // Mengunci ID player agar tidak ter-spam
     }
 
-    init(roomCode) {
-        const cleanRoomCode = roomCode.toUpperCase();
-        console.log("Menghubungkan ke Room:", cleanRoomCode);
+    init() {
+        console.log("Host Room Code:", this.roomCode);
 
-        // Inisialisasi Channel Supabase Realtime ke Room Host
-        this.channel = supabaseClient.channel(`room_${cleanRoomCode}`, {
+        const roomCodeEl = document.getElementById("roomCode");
+        if (roomCodeEl) {
+            roomCodeEl.textContent = this.roomCode;
+        }
+
+        // Inisialisasi Channel Supabase Realtime
+        this.channel = supabaseClient.channel(`room_${this.roomCode}`, {
             config: {
-                presence: { key: this.myId },
+                presence: { key: 'host' },
             },
         });
 
-        // Menerima pembaruan posisi & state objek dari Host
-        this.channel.on('broadcast', { event: 'host-update' }, ({ payload }) => {
-            this.syncGameState(payload);
+        // Mendengarkan update input pergerakan dari Client
+        this.channel.on('broadcast', { event: 'client-update' }, ({ payload }) => {
+            this.handleClientUpdate(payload);
         });
 
-        // Menerima event khusus dari Host (seperti Start Game atau Set Level)
-        this.channel.on('broadcast', { event: 'host-event' }, ({ payload }) => {
-            if (payload.startGame) {
-                if (typeof startGame === 'function') startGame();
-                const menuEl = document.getElementById("menu");
-                if (menuEl) menuEl.style.display = "none";
-            }
-            if (payload.setLevel) {
-                if (this.game && this.game.levelHandler) {
-                    this.game.levelHandler.setLevel(payload.setLevel);
-                }
+        // Pantau daftar pemain yang masuk (Presence)
+        this.channel.on('presence', { event: 'sync' }, () => {
+            const state = this.channel.presenceState();
+            this.updateMemberList(state);
+            
+            // Otomatis kirim info level ke client baru yang bergabung
+            if (this.isSubscribed && this.game.levelHandler && this.game.levelHandler.currentLevel) {
+                this.broadcastLevel(this.game.levelHandler.currentLevel.name);
             }
         });
 
-        // Subscribe ke channel dan perbarui status flag koneksi
         this.channel.subscribe((status) => {
             if (status === 'SUBSCRIBED') {
                 this.isSubscribed = true;
-                console.log("Client berhasil terhubung ke Host via Supabase Realtime!");
-                this.channel.track({ role: 'client', id: this.myId });
-                
-                // Kirim data input awal ke Host
-                this.updateHost();
+                console.log("Host terhubung ke Supabase Realtime WebSocket!");
+                this.channel.track({ role: 'host', onlineAt: new Date().toISOString() });
             } else {
                 this.isSubscribed = false;
             }
         });
     }
 
-    // Dipanggil oleh controls.js untuk mengirim pergerakan tombol
-    updateKey(key, state) {
-        this.updateHost();
+    // Dipanggil oleh controls.js (mencegah error di Host)
+    updateKey(key, state) {}
+
+    handleClientUpdate(data) {
+        if (!data || !data.playerId) return;
+
+        let targetPlayer = this.game.players.find(p => p.id === data.playerId);
+        
+        // PENCEGAHAN SPAM: Buat player baru HANYA jika belum ada DAN belum dikunci di Set
+        if (!targetPlayer && !this.createdPlayerIds.has(data.playerId)) {
+            this.createdPlayerIds.add(data.playerId); // Kunci ID agar tidak terbuat ganda
+
+            targetPlayer = this.game.playerhandler.addPlayer({
+                id: data.playerId,
+                color: this.game.fetchColor(),
+                keys: data.keys || {}
+            });
+        } else if (targetPlayer) {
+            targetPlayer.keys = data.keys;
+        }
     }
 
-    updateHost() {
-        // HANYA kirim jika WebSocket sudah terhubung aktif
-        if (!this.channel || !this.isSubscribed || !this.player) return;
+    updateClients() {
+        if (!this.channel || !this.isSubscribed) return;
+
+        // Menyusun data posisi pemain DAN nama level aktif untuk disinkronkan ke Client
+        const gameState = {
+            currentLevel: (this.game.levelHandler && this.game.levelHandler.currentLevel) 
+                ? this.game.levelHandler.currentLevel.name 
+                : null,
+            players: this.game.players.map(p => ({
+                id: p.id,
+                x: p.body ? p.body.position.x : 0,
+                y: p.body ? p.body.position.y : 0,
+                color: p.color
+            }))
+        };
 
         this.channel.send({
             type: 'broadcast',
-            event: 'client-update',
-            payload: {
-                playerId: this.player.id,
-                keys: typeof keys !== 'undefined' ? keys : {}
-            }
+            event: 'host-update',
+            payload: gameState
         });
     }
 
-    syncGameState(state) {
-        if (!state || !state.players) return;
+    broadcastLevel(levelName) {
+        if (!this.channel || !this.isSubscribed) return;
+        this.broadcast({ setLevel: levelName });
+    }
 
-        state.players.forEach(pData => {
-            let localPlayer = this.game.players.find(p => p.id === pData.id);
+    broadcast(data) {
+        if (!this.channel || !this.isSubscribed) return;
 
-            // PENCEGAHAN SPAM: Buat player baru HANYA jika belum ada di game DAN belum terkunci di Set
-            if (!localPlayer && !this.createdPlayerIds.has(pData.id)) {
-                this.createdPlayerIds.add(pData.id); // Langsung kunci ID ini
+        this.channel.send({
+            type: 'broadcast',
+            event: 'host-event',
+            payload: typeof data === 'string' ? JSON.parse(data) : data
+        });
+    }
 
-                localPlayer = this.game.playerhandler.addPlayer({
-                    id: pData.id,
-                    color: pData.color || this.game.fetchColor(),
-                    onlinePlayer: (pData.id !== this.myId)
-                });
-            }
+    updateMemberList(state) {
+        const memberListEl = document.getElementById("memberlist");
+        if (!memberListEl) return;
 
-            // Sync posisi fisik karakter lain (Matter.js body)
-            if (localPlayer && localPlayer.body && (localPlayer.id !== this.myId)) {
-                Matter.Body.setPosition(localPlayer.body, { x: pData.x, y: pData.y });
+        memberListEl.innerHTML = "";
+        Object.keys(state).forEach(key => {
+            if (key !== 'host') {
+                const item = document.createElement("div");
+                item.textContent = `Player (${key})`;
+                memberListEl.appendChild(item);
             }
         });
     }
