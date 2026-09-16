@@ -3,57 +3,81 @@ class Client {
         this.game = game;
         this.player = playerInstance;
         this.channel = null;
+        this.isSubscribed = false; // Flag status koneksi WebSocket
         this.myId = 'client_' + Math.random().toString(36).substring(2, 6);
     }
 
     init(roomCode) {
-        this.channel = supabaseClient.channel(`room_${roomCode.toUpperCase()}`, {
+        const cleanRoomCode = roomCode.toUpperCase();
+        console.log("Menghubungkan ke Room:", cleanRoomCode);
+
+        // Inisialisasi Channel Supabase Realtime ke Room Host
+        this.channel = supabaseClient.channel(`room_${cleanRoomCode}`, {
             config: {
                 presence: { key: this.myId },
             },
         });
 
-        // Terima data pembaruan game dari Host
+        // Menerima pembaruan posisi & state objek dari Host
         this.channel.on('broadcast', { event: 'host-update' }, ({ payload }) => {
             this.syncGameState(payload);
         });
 
-        // Terima event khusus dari Host (misal: Start Game, Change Level)
+        // Menerima perintah/event khusus dari Host (seperti Start Game atau Set Level)
         this.channel.on('broadcast', { event: 'host-event' }, ({ payload }) => {
             if (payload.startGame) {
-                startGame();
+                if (typeof startGame === 'function') startGame();
             }
             if (payload.setLevel) {
-                setLevel(payload.setLevel);
+                if (typeof setLevel === 'function') setLevel(payload.setLevel);
             }
         });
 
-        this.channel.subscribe(async (status) => {
+        // Subscribe ke channel Supabase dan atur status status flag koneksi
+        this.channel.subscribe((status) => {
             if (status === 'SUBSCRIBED') {
-                await this.channel.track({ role: 'client', id: this.myId });
+                this.isSubscribed = true;
+                console.log("Client berhasil terhubung ke Host via Supabase Realtime!");
+                this.channel.track({ role: 'client', id: this.myId });
+            } else {
+                this.isSubscribed = false;
             }
         });
     }
 
     updateHost() {
-        if (!this.channel) return;
+        // HANYA kirim input jika koneksi WebSocket sudah aktif (SUBSCRIBED)
+        if (!this.channel || !this.isSubscribed || !this.player) return;
 
-        // Kirim data tombol/kontrol lokal ke Host
+        // Mengirimkan status kunci/tombol yang sedang ditekan pemain ke Host
         this.channel.send({
             type: 'broadcast',
             event: 'client-update',
             payload: {
                 playerId: this.player.id,
-                keys: keys
+                keys: typeof keys !== 'undefined' ? keys : {}
             }
         });
     }
 
     syncGameState(state) {
-        // Sinkronkan posisi player berdasarkan broadcast host
+        if (!state || !state.players) return;
+
+        // Menyinkronkan posisi setiap player berdasarkan broadcast data dari Host
         state.players.forEach(pData => {
             let localPlayer = this.game.players.find(p => p.id === pData.id);
-            if (localPlayer && localPlayer.body) {
+
+            // Jika player dari host belum ada di client local, buat player baru
+            if (!localPlayer) {
+                localPlayer = this.game.playerhandler.addPlayer({
+                    id: pData.id,
+                    color: pData.color || this.game.fetchColor(),
+                    onlinePlayer: true
+                });
+            }
+
+            // Update posisi fisik (Matter.js body) player
+            if (localPlayer && localPlayer.body && (localPlayer.id !== this.player.id)) {
                 Matter.Body.setPosition(localPlayer.body, { x: pData.x, y: pData.y });
             }
         });
