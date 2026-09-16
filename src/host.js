@@ -1,174 +1,89 @@
 class Host {
     constructor(game) {
-        this.game = game
-        this.connections = []
-        let wordsf = words.filter(a=>{return a.length==4})
-        this.id = wordsf[randInt(0, wordsf.length)].toUpperCase()
-        this.roomJoinOnline = false
-        this.opening = true
+        this.game = game;
+        this.roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+        this.channel = null;
+        this.clients = {};
     }
+
     init() {
-        this.recycleJoinConn()
-        setInterval(function(){
-            if (window.hostConnection) {
-                if (!(window.hostConnection.roomJoinOnline || window.hostConnection.opening)) {
-                window.hostConnection.recycleJoinConn()
-            }}
-        })
-    }
-    broadcast(data) {
-        for (let i = 0; i < this.connections.length; i++) {
-            const conn = this.connections[i];
-            conn.send(data)
-        }
-    }
-    recycleJoinConn() {
-        this.joinConn = new Connection2W()
-        this.joinConn.open(this.id)
-        this.opening = true
+        console.log("Host Room Code:", this.roomCode);
+        document.getElementById("roomCode").textContent = this.roomCode;
 
-        this.joinConn.e.onOpening = ()=>{
-            this.roomJoinOnline = true
-            this.opening = false
-            setRoomCode(this.joinConn.selfId)
+        // Inisialisasi Realtime Channel berdasarkan Kode Room
+        this.channel = supabaseClient.channel(`room_${this.roomCode}`, {
+            config: {
+                presence: { key: 'host' },
+            },
+        });
 
-        }
-        this.joinConn.e.onConnection = ()=>{
-            document.getElementById("incoming").textContent = " (incoming connection)"
+        // Listen event dari Client (misal: input pergerakan player)
+        this.channel.on('broadcast', { event: 'client-update' }, ({ payload }) => {
+            this.handleClientUpdate(payload);
+        });
 
-            var newConnection = this.openConnection()
-            newConnection.e.onOpening = ()=>{
-                this.joinConn.send(JSON.stringify({
-                    reconnectToThis:newConnection.connS2T.lastPeerId,
-                }))
-                setTimeout(() => {
-                    this.joinConn.terminate()
-                }, 1000);
-                
+        // Pantau status koneksi pemain yang masuk (Presence)
+        this.channel.on('presence', { event: 'sync' }, () => {
+            const state = this.channel.presenceState();
+            this.updateMemberList(state);
+        });
 
-
+        this.channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await this.channel.track({ role: 'host', onlineAt: new Date().toISOString() });
             }
-            
-        }
-        this.joinConn.e.onDisconnection = ()=>{
-            this.roomJoinOnline = false
-            this.recycleJoinConn()
-            
-
-        }
-
-
-    }
-    closeConnection(conn) {
-        for (let i = 0; i < this.connections.length; i++) {
-            const conn2 = this.connections[i];
-            if(conn.selfId==conn2.selfId) {
-                conn.unloaded = true
-                this.connections.splice(i,1)
-                break
-            }
-        }
-    }
-    openConnection() {
-        var connection = new Connection2W()
-
-        connection.open()
-
-        connection.e.onData = (d)=>{
-            d = JSON.parse(d)
-            if (d.player) {
-                connection.player = this.updateClientBody(d.player, connection)
-            }
-            if (d.setUsername) {
-                connection.clientUsername = d.setUsername
-                addPlayerToMenu(d.setUsername)
-            }
-        }
-        connection.e.onConnection = (d)=>{
-            document.getElementById("incoming").textContent = ""
-           
-            //addPlayerToMenu("yay")
-        }
-        connection.e.onClose = (d)=>{
-            console.log(connection)
-            connection.player.color = "red"
-            connection.player.unload()
-            this.closeConnection(connection)
-
-           
-            //addPlayerToMenu("yay")
-        }
-        /*
-        connection.e.onOpening = function () {
-            let self = this.connection
-            console.log("opened joinConn on id: ",self.lastPeerId)
-        }
-
-        connection.initialize()
-        */
-       
-        this.connections.push(connection)
-        return connection
+        });
     }
 
-    updateClientBody(data, conn) {
-        var findPlayerById = (id) => {
-            for (let i = 0; i < this.game.players.length; i++) {
-                const player = this.game.players[i];
-                if (player.body.id == id) return player
-            }
+    handleClientUpdate(data) {
+        // Update input player yang dikirim oleh client
+        let targetPlayer = this.game.players.find(p => p.id === data.playerId);
+        if (targetPlayer) {
+            targetPlayer.keys = data.keys;
         }
-        const player = data;
-        var playerId = player.id
-        var foundPlayer = findPlayerById(playerId)
-        if (foundPlayer==undefined) {
-            
-
-            foundPlayer = mainGame.playerhandler.addPlayer({
-                bodyOptions:{
-                    id:player.id,
-                },
-                color:this.game.fetchColor(),
-            })
-            foundPlayer.onlinePlayer = true
-        } else {
-
-        }
-        conn.clientBody = foundPlayer
-
-        foundPlayer.conn = conn
-        foundPlayer.keys = data.keys
-
-        return foundPlayer
-    
     }
-    
 
     updateClients() {
-        for (let i = 0; i < this.connections.length; i++) {
-            const conn = this.connections[i];
-            if (conn.fullyConnected) {
-                conn.send(
-                    JSON.stringify({
-                        playerData:this.getPlayersData(),
-                        syncData:this.game.syncHandler.getSyncData(),
-                    })
-                )
+        if (!this.channel) return;
+
+        // Broadcast posisi & state seluruh objek game ke Client
+        const gameState = {
+            players: this.game.players.map(p => ({
+                id: p.id,
+                x: p.body ? p.body.position.x : 0,
+                y: p.body ? p.body.position.y : 0,
+                color: p.color
+            })),
+            // Tambahkan data entitas game lain jika perlu (misal: posisi block/box)
+        };
+
+        this.channel.send({
+            type: 'broadcast',
+            event: 'host-update',
+            payload: gameState
+        });
+    }
+
+    broadcast(data) {
+        if (!this.channel) return;
+        this.channel.send({
+            type: 'broadcast',
+            event: 'host-event',
+            payload: typeof data === 'string' ? JSON.parse(data) : data
+        });
+    }
+
+    updateMemberList(state) {
+        const memberListEl = document.getElementById("memberlist");
+        if (!memberListEl) return;
+        memberListEl.innerHTML = "";
+        
+        Object.keys(state).forEach(key => {
+            if (key !== 'host') {
+                const item = document.createElement("div");
+                item.textContent = `Player (${key})`;
+                memberListEl.appendChild(item);
             }
-        }
-    }
-    getPlayersData() {
-        var returnOb = []
-        for (let i = 0; i < this.game.players.length; i++) {
-            returnOb.push(this.getPlayerData(this.game.players[i]))
-            
-        }
-
-        return returnOb
-
-
-    }
-    getPlayerData(p) {
-        return parsePlayerData(p)
+        });
     }
 }
