@@ -14,7 +14,7 @@
     <script src="./libs/matterjsRaycast.js"></script>
     <script src="libs/words.js"></script>
 
-    <!-- Google Fonts untuk tampilan khas Pico Park -->
+    <!-- Google Fonts khas Pico Park -->
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="./assets/imgs/favicon.png">
     <title id="title">Microscopic Natural Area for Public Recreational Activities</title>
@@ -53,17 +53,16 @@
             height: 100vh;
         }
 
-        /* Responsive Canvas Scaling (Agate tampilan HP & Laptop sejajar 16:9) */
+        /* Fit responsive canvas murni tanpa merusak koordinat Matter.js */
         #c {
             display: block !important;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            max-width: 100vw;
-            max-height: 100vh;
+            width: 100vw;
+            height: 100vh;
             object-fit: contain;
-            aspect-ratio: 16 / 9;
         }
 
         /* Navigasi Atas */
@@ -159,7 +158,7 @@
         .btn-green { background-color: var(--accent-color); color: var(--text-color); }
         .btn-blue { background-color: var(--secondary-color); }
 
-        /* Virtual Touch Controls (Game-pad Mobile) */
+        /* Virtual Touch Controls untuk HP */
         #touch-controls {
             display: none;
             position: fixed;
@@ -224,7 +223,7 @@
         })();return false;">🔄 Restart</a>
     </div>
 
-    <!-- Scripts Game -->
+    <!-- Scripts Core Game -->
     <script src="./src/multiplayer.js"></script>
     <script src="./src/buttons.js"></script>
     <script src="./src/door.js"></script>
@@ -251,16 +250,15 @@
     <script src="src/particles.js"></script>
 
     <script src="./src/game.js"></script>
-
     <script src="./src/constraints.js"></script>
 
-    <!-- Supabase Multiplayer Modules -->
+    <!-- Module Supabase Multiplayer -->
     <script src="./src/host.js"></script>
     <script src="./src/client.js"></script>
 
     <script src="./src/menu.js"></script>
 
-    <!-- Room / Lobby UI -->
+    <!-- Room Menu UI -->
     <div id="menu">
         <div id="host" style="display: none;">
             <div id="gameDetails">
@@ -288,6 +286,9 @@
                 startGame();
                 if(hostConnection) {
                     hostConnection.broadcast({ startGame: true });
+                    if(mainGame.levelHandler && mainGame.levelHandler.currentLevel) {
+                        hostConnection.broadcastLevel(mainGame.levelHandler.currentLevel.name);
+                    }
                 }
                 return false;
             })();return false;">▶ Start Game</button>
@@ -298,7 +299,7 @@
         </div>
     </div>
 
-    <!-- Controls On-Screen untuk Mobile/Touch Devices -->
+    <!-- Controller Layar Sentuh Mobile -->
     <div id="touch-controls">
         <div id="btn-left" class="touch-btn">◀</div>
         <div id="btn-right" class="touch-btn">▶</div>
@@ -338,7 +339,7 @@
             }
             if (!urlData.host && !urlData.join) startGame();
 
-            // Loop Sync Realtime ke Supabase
+            // Loop Sync Data Realtime
             setInterval(() => {
                 if (window.hostConnection) hostConnection.updateClients();
                 if (window.clientConnection) clientConnection.updateHost();
@@ -388,7 +389,7 @@
             }
         }
 
-        /* --- SCRIPT SIMULASI KONTROL D-PAD MOBILE --- */
+        /* --- SCRIPT VIRTUAL JOYSTICK MOBILE --- */
         function setupTouchControls() {
             const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
             const touchControls = document.getElementById("touch-controls");
