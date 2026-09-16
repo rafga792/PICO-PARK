@@ -15,19 +15,14 @@ class Host {
             roomCodeEl.textContent = this.roomCode;
         }
 
-        // Inisialisasi Channel Supabase Realtime
         this.channel = supabaseClient.channel(`room_${this.roomCode}`, {
-            config: {
-                presence: { key: 'host' },
-            },
+            config: { presence: { key: 'host' } },
         });
 
-        // Mendengarkan update dari Client
         this.channel.on('broadcast', { event: 'client-update' }, ({ payload }) => {
             this.handleClientUpdate(payload);
         });
 
-        // Pantau daftar pemain (Presence)
         this.channel.on('presence', { event: 'sync' }, () => {
             const state = this.channel.presenceState();
             this.updateMemberList(state);
@@ -37,19 +32,12 @@ class Host {
             }
         });
 
-        // Handler Penanganan Status WebSocket
-        this.channel.subscribe((status, err) => {
+        this.channel.subscribe((status) => {
             if (status === 'SUBSCRIBED') {
                 this.isSubscribed = true;
-                console.log("Host terhubung ke Supabase Realtime WebSocket!");
+                console.log("Host terhubung ke Supabase Realtime!");
                 this.channel.track({ role: 'host', onlineAt: new Date().toISOString() });
-            } else if (status === 'CHANNEL_ERROR') {
-                this.isSubscribed = false;
-                console.warn("WebSocket Host mengalami error koneksi, menghubungkan ulang...", err);
-            } else if (status === 'TIMED_OUT') {
-                this.isSubscribed = false;
-                console.warn("Koneksi WebSocket Host Time Out!");
-            } else if (status === 'CLOSED') {
+            } else {
                 this.isSubscribed = false;
             }
         });
@@ -62,21 +50,27 @@ class Host {
 
         let targetPlayer = this.game.players.find(p => p.id === data.playerId);
         
-        // Buat player baru jika belum ada dan belum dikunci di Set
+        // Buat player terpisah di Host jika belum ada
         if (!targetPlayer && !this.createdPlayerIds.has(data.playerId)) {
             this.createdPlayerIds.add(data.playerId);
 
             targetPlayer = this.game.playerhandler.addPlayer({
                 id: data.playerId,
                 color: this.game.fetchColor(),
-                keys: data.keys || {}
+                onlinePlayer: true // Mencegah keyboard lokal Host mengontrol player ini
             });
 
             if (this.game.levelHandler && this.game.levelHandler.currentLevel) {
                 this.broadcastLevel(this.game.levelHandler.currentLevel.name);
             }
-        } else if (targetPlayer) {
-            targetPlayer.keys = data.keys;
+        }
+
+        // Jalankan input khusus untuk player terkait saja
+        if (targetPlayer) {
+            targetPlayer.keys = data.keys || {};
+            if (typeof targetPlayer.updateKeys === 'function') {
+                targetPlayer.updateKeys(targetPlayer.keys);
+            }
         }
     }
 
