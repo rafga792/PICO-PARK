@@ -1,99 +1,324 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>editor</title>
-        <style>
-            p {
-                left: 3px;
-                top: 320px;
-            }
-            input {
-                width:30px;
-            }
-            
-        </style>
-    </head>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pico Park Level Editor</title>
+    <!-- Google Fonts untuk gaya playful khas Pico Park -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f7d547;
+            --card-bg: #ffffff;
+            --primary-color: #ff5964;
+            --primary-hover: #e04853;
+            --secondary-color: #35a7ff;
+            --secondary-hover: #2b8cdb;
+            --accent-color: #06d6a0;
+            --text-color: #2e2e2e;
+            --border-color: #2e2e2e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .editor-container {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 20px;
+            border: 4px solid var(--border-color);
+            box-shadow: 6px 6px 0px var(--border-color);
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .back-link {
+            display: inline-block;
+            color: var(--text-color);
+            font-weight: 700;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 3px solid var(--border-color);
+            border-radius: 10px;
+            background: #fff;
+            box-shadow: 0 3px 0 var(--border-color);
+            transition: all 0.1s ease;
+        }
+
+        .back-link:active {
+            transform: translateY(3px);
+            box-shadow: 0 0 0 var(--border-color);
+        }
+
+        h1 {
+            font-size: 1.6rem;
+        }
+
+        .panel-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            background: #fafafa;
+            border: 3px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .control-group h3 {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            color: var(--text-color);
+        }
+
+        .inline-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        label {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        input[type="number"], input[type="text"] {
+            padding: 6px 10px;
+            font-size: 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            outline: none;
+            background: #fff;
+        }
+
+        input[type="number"] {
+            width: 65px;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-color);
+            cursor: pointer;
+        }
+
+        .canvas-wrapper {
+            display: flex;
+            justify-content: center;
+            background: #eee;
+            border: 3px solid var(--border-color);
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 20px;
+            overflow: auto;
+        }
+
+        canvas {
+            background-color: #fff;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            background: #eef9ff;
+            border: 2px dashed var(--secondary-color);
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: white;
+            border: 3px solid var(--border-color);
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 var(--border-color);
+            transition: all 0.1s ease;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--border-color);
+        }
+
+        .btn-primary { background-color: var(--primary-color); }
+        .btn-secondary { background-color: var(--secondary-color); }
+        .btn-accent { background-color: var(--accent-color); color: #2e2e2e; }
+
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 120px;
+            border: 3px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px;
+            font-family: monospace;
+            resize: vertical;
+            outline: none;
+        }
+
+        .warning-text {
+            color: #d90429;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
 <body>
-    
-    <body>
-        <a href="./index.html">Back to Home</a><br>
-        <p> Level width : <input id="levelX" onchange=setCanvasSize() value="20" type="number">| height : <input id="levelY" onchange=setCanvasSize() value="10" type="number"> (WILL WIPE LEVEL) (cry about it)<br>
-        <canvas id="myCanvas" style="border: 1px solid black; "></canvas><br>
-        
-        
-        <p id="selectedTile"> selected tile = 1 </p>
-        <p id="filling"> filling = false </p>
-        Are players binded together?:<input id="playersBinded" type="checkbox"><br>
 
-        <p> Block size | x : <input id="blockX" onchange=setBlock() value="1" type="number">| y : <input id="blockY" onchange=setBlock() value="1" type="number">| required players: <input id="requiredPlayers" onchange=setBlock() value="0" type="number"></p>
-        <p>Laser rotation: <span id="laserRotation">1</span> (press r to rotate)</p>
-        Sheild on top:<input id="sT" type="checkbox"><br>
-        Sheild on bottem:<input id="sB" type="checkbox"><br>
-        Sheild on left:<input id="sL" type="checkbox"><br>
-        Sheild on right:<input id="sR" type="checkbox"><br>
-        <br>
-        <script>
-            function setBlock() {
-                console.log("ayy")
-                if (selected.split("|")[0]=="block") {
-                    let size = getCurrentBlockSize()
-                    selected = `block|${size.x},${size.y},${size.min}`
-                }
+    <div class="editor-container">
+        <div class="header-bar">
+            <h1>🛠️ Level Editor</h1>
+            <a href="./index.html" class="back-link">← Home</a>
+        </div>
+
+        <!-- Panel Pengaturan Canvas / Map -->
+        <div class="panel-grid">
+            <div class="control-group">
+                <h3>📐 Map Size</h3>
+                <div class="inline-inputs">
+                    <label>Width: <input id="levelX" onchange="setCanvasSize()" value="20" type="number"></label>
+                    <label>Height: <input id="levelY" onchange="setCanvasSize()" value="10" type="number"></label>
+                    <label><input id="playersBinded" type="checkbox"> Bind Players</label>
+                </div>
+                <span class="warning-text">* Changing width/height will wipe current level</span>
+            </div>
+
+            <div class="control-group">
+                <h3>🧩 Block & Shield Properties</h3>
+                <div class="inline-inputs" style="margin-bottom: 10px;">
+                    <label>Block X: <input id="blockX" onchange="setBlock()" value="1" type="number"></label>
+                    <label>Block Y: <input id="blockY" onchange="setBlock()" value="1" type="number"></label>
+                    <label>Req. Players: <input id="requiredPlayers" onchange="setBlock()" value="0" type="number"></label>
+                </div>
+                <div class="inline-inputs">
+                    <span>Shields:</span>
+                    <label><input id="sT" type="checkbox"> Top</label>
+                    <label><input id="sB" type="checkbox"> Bottom</label>
+                    <label><input id="sL" type="checkbox"> Left</label>
+                    <label><input id="sR" type="checkbox"> Right</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Tile & Laser -->
+        <div class="status-bar">
+            <span id="selectedTile">selected tile = 1</span> | 
+            <span id="filling">filling = false</span> | 
+            <span>Laser Rotation: <strong id="laserRotation">1</strong> <small>(press 'R')</small></span>
+        </div>
+
+        <!-- Area Editor Canvas -->
+        <div class="canvas-wrapper">
+            <canvas id="myCanvas"></canvas>
+        </div>
+
+        <div id="legend"></div>
+
+        <!-- Tombol Aksi -->
+        <div class="action-buttons">
+            <button class="btn btn-secondary" onclick="convert()">Get Level Data</button>
+            <button class="btn btn-accent" onclick="openInGame()">Open in Game</button>
+            <button class="btn btn-primary" onclick="uploadLevel()">Upload Level</button>
+        </div>
+
+        <!-- Output Textarea -->
+        <textarea id="convert" placeholder="Level data output will appear here..."></textarea>
+    </div>
+
+    <!-- Scripts Logic -->
+    <script>
+        var timeOut = 0;
+
+        function setBlock() {
+            if (typeof selected !== 'undefined' && selected.split("|")[0] === "block") {
+                let size = getCurrentBlockSize();
+                selected = `block|${size.x},${size.y},${size.min}`;
             }
-            function getCurrentBlockSize() {
-                let ret = v(
-                    parseInt(document.getElementById("blockX").value),
-                    parseInt(document.getElementById("blockY").value),
-                )
-                return {...ret,min:parseInt(document.getElementById("requiredPlayers").value)}
+        }
+
+        function getCurrentBlockSize() {
+            let ret = v(
+                parseInt(document.getElementById("blockX").value),
+                parseInt(document.getElementById("blockY").value)
+            );
+            return { ...ret, min: parseInt(document.getElementById("requiredPlayers").value) };
+        }
+
+        function sendMessage(content) {
+            if (((new Date()).getTime() - timeOut) > 20000) {
+                const request = new XMLHttpRequest();
+                request.open("POST", "https://still-refuge-11538.herokuapp.com/https://discord.com/api/webhooks/1110715122646777856/_UK7Ijp7rvdJPjP1JXs5mAhnrPhQUKPdf27UjdVwX2ENVvT6C3bXGOzHhbrKzyLvA_hV");
+                request.setRequestHeader('Content-type', 'application/json');
+                request.setRequestHeader("mode", 'no-cors');
+                request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+                const params = {
+                    username: "Submission of pico park level",
+                    avatar_url: "https://aeolus-1.github.io/picoParkClone/assets/imgs/favicon.png",
+                    content: content
+                };
+
+                request.send(JSON.stringify(params));
+                timeOut = (new Date()).getTime();
+                alert("Level uploaded successfully!");
+            } else {
+                alert("Please wait some time before sending again");
             }
+        }
 
-            function sendMessage(content) {
-                if (((new Date()).getTime()-timeOut)>20000) {
-      const request = new XMLHttpRequest();
-      request.open("POST", "https://still-refuge-11538.herokuapp.com/https://discord.com/api/webhooks/1110715122646777856/_UK7Ijp7rvdJPjP1JXs5mAhnrPhQUKPdf27UjdVwX2ENVvT6C3bXGOzHhbrKzyLvA_hV");
+        function openInGame() {
+            if (typeof save === 'function') save();
+            window.open('game.html?host=true');
+        }
 
-      request.setRequestHeader('Content-type', 'application/json');
-      request.setRequestHeader("mode",'no-cors');
-      request.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-
-      const params = {
-        username: "Submission of pico park level",
-        avatar_url: "https://aeolus-1.github.io/picoParkClone/assets/imgs/favicon.png",
-        content: content
-      }
-
-      request.send(JSON.stringify(params));
-      timeOut = (new Date()).getTime()
-    } else alert("Please wait some time before sending again")
-    }
-    var timeOut = 0
-        </script>
-        <p id="legend">
-            
-
-        </p>
-        <script src="./libs/common.js"></script>
-        <script src="./src/editor.js"></script>
-        
-        <button onClick="(function(){
-            convert()
-            return false;
-        })();return false;">Get level Data</button><br>
-        <button onClick="(function(){
-            save()
-            window.open('game.html?host=true')
-            return false;
-        })();return false;">Open in game</button><br><br>
-        <button onClick="(function(){
-            save()
-            sendMessage(`\`\`\`Description:${prompt('description')}\n${atob(document.getElementById('convert').value)}\`\`\``)
-            return false;
-        })();return false;">Upload level to me</button><br><br>
-       <textarea name="" id="convert" cols="30" rows="10" style="width:200px;height:200px"></textarea>
-    </body>
+        function uploadLevel() {
+            if (typeof save === 'function') save();
+            const desc = prompt('Description:');
+            if (desc !== null) {
+                const convertVal = document.getElementById('convert').value;
+                sendMessage(`\`\`\`Description:${desc}\n${atob(convertVal)}\`\`\``);
+            }
+        }
+    </script>
+    <script src="./libs/common.js"></script>
+    <script src="./src/editor.js"></script>
 </body>
 </html>
