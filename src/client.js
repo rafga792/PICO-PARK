@@ -1,116 +1,61 @@
 class Client {
-    constructor(game, player) {
-        this.game = game
-
-        this.mainPlayer = player
-
-        this.roomConn;
-        this.mainConn;
-
-        this.recentPing = 0
-
-        let name = localStorage.getItem("username")
-        name = name||"unnamed"
-        this.username = name
-    }
-    init(roomId) {
-        this.roomConn = new Connection2W()
-        this.roomConn.connect(roomId)
-
-        this.roomConn.e.onData = (d)=>{
-            this.processData(d)
-        }
-
-        this.roomConn.e.onConnectionFail = ()=>{
-            console.log("retrying")
-            this.init(roomId)
-            
-
-        }
+    constructor(game, playerInstance) {
+        this.game = game;
+        this.player = playerInstance;
+        this.channel = null;
+        this.myId = 'client_' + Math.random().toString(36).substring(2, 6);
     }
 
-    processData(d,rd) {
-        d = JSON.parse(d)
-        
-        if (true) {
-            if (d.reconnectToThis) {
-                this.mainConn = new Connection2W()
-                this.mainConn.connect(d.reconnectToThis)
-                this.mainConn.e.onData = (d, rd)=>{
-                    this.processData(d,rd)
-                }
-                this.mainConn.e.onConnection = ()=>{
-                    this.mainConn.send(JSON.stringify({
-                        setUsername:this.username
-                    }))
-                }
+    init(roomCode) {
+        this.channel = supabaseClient.channel(`room_${roomCode.toUpperCase()}`, {
+            config: {
+                presence: { key: this.myId },
+            },
+        });
+
+        // Terima data pembaruan game dari Host
+        this.channel.on('broadcast', { event: 'host-update' }, ({ payload }) => {
+            this.syncGameState(payload);
+        });
+
+        // Terima event khusus dari Host (misal: Start Game, Change Level)
+        this.channel.on('broadcast', { event: 'host-event' }, ({ payload }) => {
+            if (payload.startGame) {
+                startGame();
             }
-            if (d.playerData) {
-                this.updateHostPlayers(d.playerData)
+            if (payload.setLevel) {
+                setLevel(payload.setLevel);
             }
-            if (d.syncData&&mainGame.running) {
-                this.game.syncHandler.processSyncData(d.syncData)
+        });
+
+        this.channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await this.channel.track({ role: 'client', id: this.myId });
             }
-            if (d.setColor) {
-                this.mainPlayer.color = d.setColor
-            }
-            if (d.startGame) {
-                startGame()
-            }
-            if (d.setLevel) {
-                this.game.renderer.levelTransistion(d.setLevel)
-                
-            }
-            if (d.restartLevel) {
-                this.game.levelHandler.setLevel(mainGame.levelHandler.currentLevel.name)
-                
-            }
-        }
+        });
     }
-    updateKey(keycode, value) {
-        this.mainConn.send(JSON.stringify({
-            keycode:{
-                code:keycode,
-                value:value,
-            }
-        }))
-    }
+
     updateHost() {
-        if (this.mainConn !=undefined&&this.mainConn.fullyConnected) this.mainConn.send(JSON.stringify({
-            player:parsePlayerData(this.mainPlayer)
-        }))
-    }
-    updateHostPlayers(players) {
-        var findPlayerById = (id) => {
-            for (let i = 0; i < this.game.players.length; i++) {
-                const player = this.game.players[i];
-                if (player.body.id == id) return player
+        if (!this.channel) return;
+
+        // Kirim data tombol/kontrol lokal ke Host
+        this.channel.send({
+            type: 'broadcast',
+            event: 'client-update',
+            payload: {
+                playerId: this.player.id,
+                keys: keys
             }
-        }
-        for (let i = 0; i < players.length; i++) {
-            const player = players[i];
-            var playerId = player.id
-
-            var foundPlayer = findPlayerById(playerId)
-                if (foundPlayer==undefined) {
-
-                    foundPlayer = mainGame.playerhandler.addPlayer({
-                        bodyOptions:{
-                            id:player.id,
-                        },
-                    })
-                    foundPlayer.onlinePlayer = true
-                } else {
-
-                }
-
-                if (foundPlayer.body.id!=this.mainPlayer.body.id||true) {
-                    this.setPlayer(foundPlayer, player)
-                }
-            
-        }
+        });
     }
-    setPlayer(body, data) {
-        setPlayerWithData(body, data)
+
+    syncGameState(state) {
+        // Sinkronkan posisi player berdasarkan broadcast host
+        state.players.forEach(pData => {
+            let localPlayer = this.game.players.find(p => p.id === pData.id);
+            if (localPlayer && localPlayer.body) {
+                Matter.Body.setPosition(localPlayer.body, { x: pData.x, y: pData.y });
+            }
+        });
     }
 }
