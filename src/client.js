@@ -18,9 +18,7 @@ class Client {
         console.log("Menghubungkan ke Room:", cleanRoomCode);
 
         this.channel = supabaseClient.channel(`room_${cleanRoomCode}`, {
-            config: {
-                presence: { key: this.myId },
-            },
+            config: { presence: { key: this.myId } },
         });
 
         this.channel.on('broadcast', { event: 'host-update' }, ({ payload }) => {
@@ -40,18 +38,13 @@ class Client {
             }
         });
 
-        this.channel.subscribe((status, err) => {
+        this.channel.subscribe((status) => {
             if (status === 'SUBSCRIBED') {
                 this.isSubscribed = true;
-                console.log("Client berhasil terhubung via Supabase Realtime!");
+                console.log("Client terhubung ke Supabase Realtime!");
                 this.channel.track({ role: 'client', id: this.myId });
                 this.updateHost();
-            } else if (status === 'CHANNEL_ERROR') {
-                this.isSubscribed = false;
-                console.warn("WebSocket Client error, menghubungkan ulang...", err);
-            } else if (status === 'TIMED_OUT') {
-                this.isSubscribed = false;
-            } else if (status === 'CLOSED') {
+            } else {
                 this.isSubscribed = false;
             }
         });
@@ -77,7 +70,7 @@ class Client {
     syncGameState(state) {
         if (!state || !state.players) return;
 
-        // Sync level map
+        // Auto-sync level map
         if (state.currentLevel && this.game.levelHandler) {
             const currentClientLevel = this.game.levelHandler.currentLevel ? this.game.levelHandler.currentLevel.name : null;
             if (currentClientLevel !== state.currentLevel) {
@@ -85,7 +78,7 @@ class Client {
             }
         }
 
-        // Sync posisi player
+        // Sinkronisasi posisi pergerakan secara halus (Lerp Interpolation)
         state.players.forEach(pData => {
             let localPlayer = this.game.players.find(p => p.id === pData.id);
 
@@ -99,8 +92,19 @@ class Client {
                 });
             }
 
-            if (localPlayer && localPlayer.body && (localPlayer.id !== this.myId)) {
-                Matter.Body.setPosition(localPlayer.body, { x: pData.x, y: pData.y });
+            if (localPlayer && localPlayer.body) {
+                const curX = localPlayer.body.position.x;
+                const curY = localPlayer.body.position.y;
+                
+                // Jika perpindahan jarak sangat jauh, langsung posisikan
+                if (Math.hypot(pData.x - curX, pData.y - curY) > 150) {
+                    Matter.Body.setPosition(localPlayer.body, { x: pData.x, y: pData.y });
+                } else {
+                    // Haluskan pergerakan koordinat
+                    const smoothX = curX + (pData.x - curX) * 0.3;
+                    const smoothY = curY + (pData.y - curY) * 0.3;
+                    Matter.Body.setPosition(localPlayer.body, { x: smoothX, y: smoothY });
+                }
             }
         });
     }
