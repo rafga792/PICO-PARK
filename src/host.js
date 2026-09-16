@@ -3,39 +3,43 @@ class Host {
         this.game = game;
         this.roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
         this.channel = null;
-        this.isSubscribed = false;
+        this.isSubscribed = false; // Flag status koneksi WebSocket
+        this.createdPlayerIds = new Set(); // Mencegah duplikasi pembuatan player
     }
 
     init() {
         console.log("Host Room Code:", this.roomCode);
 
+        // Update tampilan UI kode room jika elemennya ada
         const roomCodeEl = document.getElementById("roomCode");
         if (roomCodeEl) {
             roomCodeEl.textContent = this.roomCode;
         }
 
+        // Inisialisasi Channel Supabase Realtime berdasarkan Kode Room
         this.channel = supabaseClient.channel(`room_${this.roomCode}`, {
             config: {
                 presence: { key: 'host' },
             },
         });
 
-        // Tangkap input & pendaftaran pemain dari Client
+        // Tangkap input & data dari Client
         this.channel.on('broadcast', { event: 'client-update' }, ({ payload }) => {
             this.handleClientUpdate(payload);
         });
 
-        // Pantau pemain yang join/leave
+        // Pantau daftar pemain yang terkoneksi di room (Presence)
         this.channel.on('presence', { event: 'sync' }, () => {
             const state = this.channel.presenceState();
             this.updateMemberList(state);
             
-            // Kirim level ke client baru yang bergabung
+            // Otomatis kirim data level aktif ke client baru yang bergabung
             if (this.isSubscribed && this.game.levelHandler && this.game.levelHandler.currentLevel) {
                 this.broadcastLevel(this.game.levelHandler.currentLevel.name);
             }
         });
 
+        // Subscribe ke channel dan perbarui status flag koneksi
         this.channel.subscribe((status) => {
             if (status === 'SUBSCRIBED') {
                 this.isSubscribed = true;
@@ -47,6 +51,7 @@ class Host {
         });
     }
 
+    // Dipanggil oleh controls.js (jika ada) untuk mencegah error 'updateKey is not a function'
     updateKey(key, state) {}
 
     handleClientUpdate(data) {
@@ -54,22 +59,26 @@ class Host {
 
         let targetPlayer = this.game.players.find(p => p.id === data.playerId);
         
-        // Buat karakter fisik baru di Host untuk Client tersebut
-        if (!targetPlayer) {
+        // PENCEGAHAN SPAM: Hanya buat player baru jika belum ada DAN belum dikunci di Set
+        if (!targetPlayer && !this.createdPlayerIds.has(data.playerId)) {
+            this.createdPlayerIds.add(data.playerId); // Kunci ID ini agar tidak di-spawn ganda
+
             targetPlayer = this.game.playerhandler.addPlayer({
                 id: data.playerId,
                 color: this.game.fetchColor(),
                 keys: data.keys || {}
             });
-        } else {
+        } else if (targetPlayer) {
+            // Update input tombol player yang sudah terdaftar
             targetPlayer.keys = data.keys;
         }
     }
 
     updateClients() {
+        // HANYA broadcast jika koneksi WebSocket sudah SUBSCRIBED
         if (!this.channel || !this.isSubscribed) return;
 
-        // Sync posisi seluruh pemain
+        // Menyusun state posisi fisik seluruh pemain
         const gameState = {
             players: this.game.players.map(p => ({
                 id: p.id,
@@ -79,6 +88,7 @@ class Host {
             }))
         };
 
+        // Broadcast data posisi ke seluruh Client
         this.channel.send({
             type: 'broadcast',
             event: 'host-update',
@@ -106,6 +116,7 @@ class Host {
         if (!memberListEl) return;
 
         memberListEl.innerHTML = "";
+
         Object.keys(state).forEach(key => {
             if (key !== 'host') {
                 const item = document.createElement("div");
