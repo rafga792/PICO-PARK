@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
+    <!-- Supabase JS Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./src/supabaseConfig.js"></script>
+
     <!-- External Libraries -->
     <script src="./libs/common.js"></script>
     <script src="./libs/matter.min.js"></script>
     <script src="./libs/matterjsRaycast.js"></script>
-    <script src="./libs/peer.js"></script>
     <script src="libs/words.js"></script>
 
     <!-- Google Fonts untuk tampilan khas Pico Park -->
@@ -142,7 +145,7 @@
 
         /* Virtual Touch Controls (Game-pad HP) */
         #touch-controls {
-            display: none; /* Otomatis aktif di touchscreen */
+            display: none;
             position: fixed;
             bottom: 20px;
             left: 0;
@@ -175,7 +178,6 @@
             box-shadow: 0 0 0 var(--border-color);
         }
 
-        /* Posisi D-Pad dan Tombol */
         #btn-left { bottom: 20px; left: 20px; width: 65px; height: 65px; }
         #btn-right { bottom: 20px; left: 95px; width: 65px; height: 65px; }
         #btn-jump { bottom: 25px; right: 25px; width: 75px; height: 75px; background: rgba(255, 89, 100, 0.9); color: white; }
@@ -236,6 +238,7 @@
 
     <script src="./src/constraints.js"></script>
 
+    <!-- Multiplayer via Supabase -->
     <script src="./src/host.js"></script>
     <script src="./src/client.js"></script>
 
@@ -246,11 +249,7 @@
         <div id="host" style="display: none;">
             <div id="gameDetails">
                 <div id="gameCode">Code: <b id="roomCode">fetching...</b><span id="incoming"></span></div>
-                <a id="copyLink" href="#" style="font-size:0.9rem; color:var(--secondary-color);" onclick="(function(){
-                    navigator.clipboard.writeText(`https://aeolus-1.github.io/picoParkClone/game.html?join=${hostConnection.joinConn.selfId}`);
-                    alert('Link berhasil disalin!');
-                    return false;
-                })();return false;">[📋 Copy Link]</a>
+                <a id="copyLink" href="#" style="font-size:0.9rem; color:var(--secondary-color);" onclick="copyRoomLink()">[📋 Copy Link]</a>
             </div>
             
             <div id="memberList">
@@ -271,7 +270,9 @@
 
             <button class="btn btn-green" onclick="(function(){
                 startGame();
-                hostConnection.broadcast(JSON.stringify({ startGame:true }));
+                if(hostConnection) {
+                    hostConnection.broadcast({ startGame: true });
+                }
                 return false;
             })();return false;">▶ Start Game</button>
         </div>
@@ -290,6 +291,14 @@
 
     <script>
         window.localfile = location.protocol == "file:";
+
+        function copyRoomLink() {
+            if (window.hostConnection && hostConnection.roomCode) {
+                const joinUrl = `${window.location.origin}${window.location.pathname}?join=${hostConnection.roomCode}`;
+                navigator.clipboard.writeText(joinUrl);
+                alert('Link room Supabase berhasil disalin!');
+            }
+        }
 
         function initGame() {
             window.mainGame = new Game();
@@ -313,10 +322,11 @@
             }
             if (!urlData.host && !urlData.join) startGame();
 
+            // Interval Broadcast Realtime
             setInterval(() => {
                 if (window.hostConnection) hostConnection.updateClients();
                 if (window.clientConnection) clientConnection.updateHost();
-            }, 10);
+            }, 15);
 
             setInterval(() => {
                 mainGame.players.forEach((e) => { 
@@ -352,23 +362,21 @@
                 localStorage.removeItem("tempLevel");
             }
 
-            // Inisialisasi Kontrol Layar Sentuh untuk Mobile
             setupTouchControls();
         };
 
         function setLevel(lvl) {
             mainGame.renderer.levelTransistion(lvl);
             if (window.hostConnection) {
-                hostConnection.broadcast(JSON.stringify({ setLevel: lvl }));
+                hostConnection.broadcast({ setLevel: lvl });
             }
         }
 
-        /* --- SCRIPT SIMULASI KEYBOARD DARI TOMBOL SENTUH (MOBILE) --- */
+        /* --- SCRIPT KONTROL SENTUH MOBILE --- */
         function setupTouchControls() {
             const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
             const touchControls = document.getElementById("touch-controls");
 
-            // Tampilkan tombol touch jika dibuka dari HP / Tablet
             if (isTouchDevice) {
                 touchControls.style.display = "block";
             }
@@ -401,7 +409,6 @@
                 btn.addEventListener("mouseup", release);
             }
 
-            // Pemetaan Tombol Sentuh ke Key Code Panah (Arrow Keys)
             bindTouchKey("btn-left", 37, "arrowleft");
             bindTouchKey("btn-right", 39, "arrowright");
             bindTouchKey("btn-jump", 38, "arrowup");
