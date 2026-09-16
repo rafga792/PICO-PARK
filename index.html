@@ -1,47 +1,223 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="./assets/imgs/favicon.png">
     <title>Microscopic Natural Area for Public Recreational Activities</title>
+    <!-- Google Fonts untuk gaya playful khas game -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f7d547;
+            --card-bg: #ffffff;
+            --primary-color: #ff5964;
+            --primary-hover: #e04853;
+            --secondary-color: #35a7ff;
+            --secondary-hover: #2b8cdb;
+            --text-color: #2e2e2e;
+            --border-color: #2e2e2e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 20px;
+            border: 4px solid var(--border-color);
+            box-shadow: 6px 6px 0px var(--border-color);
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 24px;
+            line-height: 1.3;
+            color: var(--text-color);
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .divider {
+            border: none;
+            height: 4px;
+            background-color: var(--border-color);
+            border-radius: 2px;
+            margin: 20px 0;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 1rem;
+            border: 3px solid var(--border-color);
+            border-radius: 12px;
+            outline: none;
+            transition: transform 0.1s ease;
+        }
+
+        input[type="text"]:focus {
+            transform: scale(1.02);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: white;
+            border: 3px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 var(--border-color);
+            transition: all 0.1s ease;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--border-color);
+        }
+
+        .btn-host {
+            background-color: var(--primary-color);
+        }
+
+        .btn-host:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-join {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-join:hover {
+            background-color: var(--secondary-hover);
+        }
+
+        .join-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .join-group input {
+            flex: 1;
+        }
+
+        .join-group .btn {
+            width: auto;
+            padding: 0 24px;
+        }
+
+        .editor-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: var(--text-color);
+            font-weight: 600;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 2px dashed var(--border-color);
+            transition: background 0.2s;
+        }
+
+        .editor-link:hover {
+            background: #f0f0f0;
+        }
+    </style>
 </head>
 <body>
-    <h1>Microscopic Natural Area for Public Recreational Activities</h1>
-    Host Game <button href="yay"  onClick="(function(){
-        window.open('./game.html?host=true','_self')
-        return false;
-    })();return false;">Create Room</button><br>
-    <hr>
-    <b>Join Room</b><br>
-    Username <input id="usernameInpt" onchange="(function(){
-        localStorage.setItem('username', document.getElementById('usernameInpt').value)
-        return false;
-    })();return false;" type="text"><br>
-    <script>
-        let name = localStorage.getItem("username")
-        name = name||""
-        document.getElementById("usernameInpt").value = name
-    </script>
-    Room Code <input id="codeinpt" type="text"><button onClick="(function(){
-        window.open(`./game.html?join=${getCode().toUpperCase()}`,'_self')
-        return false;
-    })();return false;" id="joinButton">Join</button>
-    <script>
-        let input = document.getElementById("codeinpt")
-        input.addEventListener("keypress", function(event) {
-  // If the user presses the "Enter" key on the keyboard
-  if (event.key === "Enter") {
-    // Cancel the default action, if needed
-    event.preventDefault();
-    // Trigger the button element with a click
-    document.getElementById("joinButton").click();
-  }
-});
-    </script>
 
-    <br><br><a href="./lvl.html">[Level Editor]</a>
+    <div class="container">
+        <h1>Microscopic Natural Area for Public Recreational Activities</h1>
+        
+        <!-- Section Host Game -->
+        <div class="section">
+            <button class="btn btn-host" onclick="window.open('./game.html?host=true','_self')">
+                Create Room
+            </button>
+        </div>
 
-    <script>function getCode(){return document.getElementById("codeinpt").value}</script>
+        <hr class="divider">
+
+        <!-- Section Join Room -->
+        <div class="section">
+            <div class="form-group">
+                <label for="usernameInpt">Username</label>
+                <input id="usernameInpt" type="text" placeholder="Masukkan username..." onchange="saveUsername()">
+            </div>
+
+            <div class="form-group">
+                <label for="codeinpt">Room Code</label>
+                <div class="join-group">
+                    <input id="codeinpt" type="text" placeholder="KODE" style="text-transform: uppercase;">
+                    <button id="joinButton" class="btn btn-join" onclick="joinRoom()">Join</button>
+                </div>
+            </div>
+        </div>
+
+        <a href="./lvl.html" class="editor-link">🛠️ Level Editor</a>
+    </div>
+
+    <script>
+        // Load Username dari LocalStorage saat halaman dimuat
+        const usernameInput = document.getElementById("usernameInpt");
+        usernameInput.value = localStorage.getItem("username") || "";
+
+        function saveUsername() {
+            localStorage.setItem('username', usernameInput.value);
+        }
+
+        function getCode() {
+            return document.getElementById("codeinpt").value;
+        }
+
+        function joinRoom() {
+            const code = getCode().toUpperCase();
+            if (code) {
+                window.open(`./game.html?join=${code}`, '_self');
+            }
+        }
+
+        // Listener Tombol Enter pada Input Room Code
+        document.getElementById("codeinpt").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                document.getElementById("joinButton").click();
+            }
+        });
+    </script>
 </body>
 </html>
