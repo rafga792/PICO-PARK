@@ -4,7 +4,7 @@ class Host {
         this.roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
         this.channel = null;
         this.isSubscribed = false;
-        this.createdPlayerIds = new Set(); // Mencegah duplikasi player
+        this.createdPlayerIds = new Set();
     }
 
     init() {
@@ -22,12 +22,12 @@ class Host {
             },
         });
 
-        // Tangkap update dari Client
+        // Mendengarkan update dari Client
         this.channel.on('broadcast', { event: 'client-update' }, ({ payload }) => {
             this.handleClientUpdate(payload);
         });
 
-        // Pantau player yang terhubung (Presence)
+        // Pantau daftar pemain (Presence)
         this.channel.on('presence', { event: 'sync' }, () => {
             const state = this.channel.presenceState();
             this.updateMemberList(state);
@@ -37,13 +37,19 @@ class Host {
             }
         });
 
-        // Subscribe WebSocket
-        this.channel.subscribe((status) => {
+        // Handler Penanganan Status WebSocket
+        this.channel.subscribe((status, err) => {
             if (status === 'SUBSCRIBED') {
                 this.isSubscribed = true;
                 console.log("Host terhubung ke Supabase Realtime WebSocket!");
                 this.channel.track({ role: 'host', onlineAt: new Date().toISOString() });
-            } else {
+            } else if (status === 'CHANNEL_ERROR') {
+                this.isSubscribed = false;
+                console.warn("WebSocket Host mengalami error koneksi, menghubungkan ulang...", err);
+            } else if (status === 'TIMED_OUT') {
+                this.isSubscribed = false;
+                console.warn("Koneksi WebSocket Host Time Out!");
+            } else if (status === 'CLOSED') {
                 this.isSubscribed = false;
             }
         });
@@ -56,7 +62,7 @@ class Host {
 
         let targetPlayer = this.game.players.find(p => p.id === data.playerId);
         
-        // Hanya buat player jika belum terdaftar & belum dikunci
+        // Buat player baru jika belum ada dan belum dikunci di Set
         if (!targetPlayer && !this.createdPlayerIds.has(data.playerId)) {
             this.createdPlayerIds.add(data.playerId);
 
